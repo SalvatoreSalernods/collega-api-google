@@ -1,5 +1,6 @@
 {
   "name": "collega-api-google",
+  "description": "Marketplace di Salvatore Salerno con la skill collega-api-google: collegare una nuova API Google alle credenziali ADC senza rompere gli MCP che gia funzionano.",
   "owner": {
     "name": "Salvatore Salerno",
     "url": "https://github.com/SalvatoreSalernods"
