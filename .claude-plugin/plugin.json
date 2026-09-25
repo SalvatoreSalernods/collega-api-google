@@ -1,0 +1,21 @@
+{
+  "name": "collega-api-google",
+  "version": "0.1.0",
+  "description": "Collega una nuova API Google (Search Console, Tag Manager, Business Profile, YouTube Data, Merchant Center…) alle credenziali ADC condivise senza rompere gli MCP che già funzionano. Copre la catena di ostacoli i cui errori indicano quasi sempre la causa sbagliata: API disabilitata, scope insufficienti, 'Questa app è bloccata', ambiti da dichiarare in console, token che scadono a 7 giorni. Con backup verificato, rollback e test di non-regressione.",
+  "author": {
+    "name": "Salvatore Salerno",
+    "url": "https://github.com/SalvatoreSalernods"
+  },
+  "repository": "https://github.com/SalvatoreSalernods/collega-api-google",
+  "license": "MIT",
+  "keywords": [
+    "google-api",
+    "oauth2",
+    "gcloud",
+    "application-default-credentials",
+    "tag-manager",
+    "search-console",
+    "claude-code",
+    "mcp"
+  ]
+}

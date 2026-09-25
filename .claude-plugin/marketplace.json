@@ -1,0 +1,14 @@
+{
+  "name": "collega-api-google",
+  "owner": {
+    "name": "Salvatore Salerno",
+    "url": "https://github.com/SalvatoreSalernods"
+  },
+  "plugins": [
+    {
+      "name": "collega-api-google",
+      "source": "./",
+      "description": "Collega una nuova API Google alle credenziali ADC condivise senza rompere gli MCP che già funzionano: scope OAuth, consent screen, scadenza dei token, backup e test di non-regressione."
+    }
+  ]
+}

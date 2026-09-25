@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.bak
+
+# Il config locale non sta qui (vive in ~/.config/collega-api-google/),
+# ma se qualcuno lo copiasse nella cartella per comodita, non deve finire in git.
+config.env
+*.client_secret*
+client_secret*.json
