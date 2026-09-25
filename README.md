@@ -81,22 +81,37 @@ Poi, una volta sola:
 bash ~/.claude/skills/collega-api-google/scripts/configura.sh
 ```
 
-## I tuoi dati non stanno nella skill
+## Dove finisce la tua configurazione
 
-`configura.sh` chiede il project ID e il percorso del file client OAuth, li **verifica** (che il
-progetto esista, che il client sia di tipo Desktop e non Web) e li scrive in:
+`configura.sh` chiede il project ID e il percorso del file client OAuth, li **verifica** (che
+l'ID abbia la forma giusta, che il client sia di tipo Desktop e non Web, che appartenga al
+progetto che hai scelto) e li scrive qui:
 
 ```
 ~/.config/collega-api-google/config.env      # dir 700, file 600
 ```
 
-Fuori dalla cartella della skill, quindi fuori da qualsiasi repo. Nella skill non c'è nessun
-identificativo, nessun percorso personale, nessun segreto — ed è per questo che si può
-pubblicare senza bonifiche a mano ogni volta.
+È l'unico file che la skill crea fuori da `~/.config/gcloud`. Per cambiare progetto rilanci
+`configura.sh`; per disinstallare tutto, cancelli quel file. `configura.sh --mostra` ti dice
+cosa c'è dentro e ti stampa le due URL di console già puntate al tuo progetto.
 
-Il **contenuto** del file client (il client secret) non viene mai letto, stampato o copiato:
-circola solo il percorso. Vale anche per gli output degli script, che stampano il motivo
-d'errore riferito da Google e non la risposta grezza, che conterrebbe email e client ID.
+## Cosa fa questa skill delle tue credenziali
+
+Legittimo chiederselo prima di eseguire script altrui che toccano l'OAuth di tutti i tuoi
+progetti Google. In breve:
+
+- **Il contenuto del file client non viene mai letto, stampato o copiato.** Circola solo il
+  percorso. L'unica cosa che viene letta dentro quel file è il tipo di client e il `project_id`,
+  per i due controlli di `configura.sh`.
+- **I backup dell'ADC restano sulla tua macchina**, in `~/.config/gcloud/backups/`, a permessi
+  600 in una directory 700. Ogni backup contiene un refresh token valido: cancellare il file
+  non lo revoca, per farlo davvero serve
+  [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+- **Gli output non stampano risposte grezze delle API.** Quando una chiamata va storta viene
+  mostrato il motivo riferito da Google, non il corpo della risposta, che conterrebbe la tua
+  email e il tuo client ID — e che finirebbe in chiaro il giorno che incolli un errore in una
+  issue.
+- **Nessuna chiamata va altrove che a Google.** Nessuna telemetria, nessun endpoint di terzi.
 
 ## Il perimetro minimo
 
