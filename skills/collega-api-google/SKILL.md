@@ -27,11 +27,26 @@ Da qui discendono le due regole operative: **backup prima**, **lista completa se
 ## Passo 0 — la configurazione, una volta sola
 
 La skill non contiene nessun dato specifico: progetto Google Cloud e percorso del file client
-OAuth stanno in un file di configurazione **fuori** dalla cartella della skill, così la skill
-si può pubblicare e condividere senza bonifiche.
+OAuth stanno in un file di configurazione **fuori** dalla cartella della skill. È anche il
+motivo per cui non devi mai cablare quei valori in un comando: si leggono dal config.
+
+### Prima di tutto: dove stanno gli script
+
+Il percorso cambia con il tipo di installazione — come plugin la cartella sta sotto
+`~/.claude/plugins/cache/<marketplace>/<plugin>/<versione>/`, via symlink sotto
+`~/.claude/skills/` — quindi **non scrivere un percorso a memoria**: risolvilo una volta e
+riusalo. Da qui in avanti i comandi usano `$SCRIPTS`.
 
 ```bash
-bash ~/.claude/skills/collega-api-google/scripts/configura.sh
+SCRIPTS="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/skills/collega-api-google}"
+SCRIPTS="${SCRIPTS:-$HOME/.claude/skills/collega-api-google}/scripts"
+ls "$SCRIPTS"   # deve elencare configura.sh, backup-adc.sh, comando-login.sh, check-non-regressione.sh
+```
+
+### La configurazione
+
+```bash
+bash "$SCRIPTS/configura.sh"
 ```
 
 Chiede due cose e le verifica invece di fidarsi:
@@ -52,14 +67,11 @@ Chiede due cose e le verifica invece di fidarsi:
 |---|---|
 | Config | `~/.config/collega-api-google/config.env` (dir 700, file 600) |
 | Chiavi | `GCP_PROJECT_ID`, `OAUTH_CLIENT_FILE` (percorso o glob), `GOOGLE_ADS_DEVELOPER_TOKEN` (opz.) |
-| Rilettura | `bash scripts/configura.sh --mostra` |
+| Rilettura | `bash "$SCRIPTS/configura.sh" --mostra` |
 
 Se un altro script si lamenta che «non è configurato», la risposta è sempre questa: eseguire
 `configura.sh`. Non inventare i valori e non chiederli a voce per poi scriverli in un comando:
 è dal config che li leggono tutti gli script.
-
-> Se la skill è installata come plugin e non via symlink, la sua cartella sta sotto
-> `~/.claude/plugins/<nome-plugin>/skills/collega-api-google/`: adatta i percorsi che seguono.
 
 ## Che cosa NON sta nel config
 
@@ -110,7 +122,7 @@ dedicati — molte rientrano in `cloud-platform`.
 Non negoziabile, ed è l'unica rete che hai:
 
 ```bash
-bash ~/.claude/skills/collega-api-google/scripts/backup-adc.sh
+bash "$SCRIPTS/backup-adc.sh"
 ```
 
 Salva credenziali + scope correnti in `~/.config/gcloud/backups/` con timestamp, verifica che
@@ -161,7 +173,7 @@ Chiedi all'utente cosa vede, non darlo per fatto.
 Non scrivere il comando a mano. Fattelo generare dagli scope realmente attivi:
 
 ```bash
-bash ~/.claude/skills/collega-api-google/scripts/comando-login.sh tagmanager.publish
+bash "$SCRIPTS/comando-login.sh" tagmanager.publish
 ```
 
 Accetta la forma breve (`tagmanager.publish`) o l'URL completo, segnala quelli già presenti,
@@ -178,7 +190,7 @@ Cosa vedrà l'utente, e va detto in anticipo perché sembra un errore:
 ### 7. Verifica, e soprattutto verifica di non aver rotto niente
 
 ```bash
-bash ~/.claude/skills/collega-api-google/scripts/check-non-regressione.sh
+bash "$SCRIPTS/check-non-regressione.sh"
 ```
 
 Controlla gli scope presenti e interroga **solo le API che gli scope dicono configurate** —
