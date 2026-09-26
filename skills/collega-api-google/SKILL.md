@@ -20,12 +20,46 @@ permessi.** Presuppone cioè che più strumenti sulla stessa macchina usino lo s
 il caso normale di chi installa gli MCP ufficiali di Google (`google-ads-mcp`, `analytics-mcp`),
 che per default si autenticano così.
 
-Non è l'unica architettura possibile, e va detto all'utente quando la domanda è «come mi
-organizzo» e non «come aggiungo questa API». Un'integrazione può usare credenziali proprie
-(service account, oppure un ADC separato puntando `CLOUDSDK_CONFIG` a un'altra directory): costa
-un po' di configurazione iniziale ed elimina alla radice il rischio che un login rompa tutto il
-resto. Se l'utente ha molte integrazioni da mantenere nel tempo, proponiglielo invece di
-allargare all'infinito un unico insieme di permessi.
+Non è l'unica architettura possibile. Ma prima di proporre alternative, ricorda che **l'utente
+non ha scelto di condividere l'ADC**: è ciò che si ottiene non facendo niente di speciale, perché
+`gcloud` scrive un file solo e gli MCP ufficiali leggono quel file. Non trattarlo come un errore
+suo.
+
+### Gate: cosa tenere insieme e cosa isolare
+
+**Le chiavi che aprono solo per guardare possono stare nello stesso mazzo. Quelle che aprono per
+cambiare stanno da sole.** Il motivo è che nell'ADC condiviso ogni strumento eredita i permessi di
+tutti gli altri: uno scope di scrittura ce l'hanno tutti, non solo chi ne ha bisogno.
+
+**Quando l'utente chiede di aggiungere uno scope di SCRITTURA a un ADC condiviso, fermati e
+proponi l'isolamento prima di procedere.** Non rifiutare: spiega il travaso di poteri, di' quanto
+costa separare, e se l'utente conferma procedi con la sua scelta.
+
+| | Esempi | Regola |
+|---|---|---|
+| Insieme | Search Console, Analytics, Google Ads, YouTube **in sola lettura** | nessun danno possibile, non c'è niente da isolare |
+| Isolare | **Merchant Center**: l'unico scope è `content`, che include la scrittura su prodotti e prezzi — non esiste una variante readonly | nell'ADC comune quel potere lo erediterebbero tutti |
+| Valutare | **Tag Manager** con `edit.containers`: consente di cancellare tag, trigger e variabili | senza `publish` niente arriva al sito, ma non è sola lettura |
+
+Vincoli da conoscere prima di consigliare, verificati alla fonte:
+
+- **YouTube non supporta i service account** (errore `NoLinkedYouTubeAccount`): serve
+  l'autorizzazione dell'utente, quindi per YouTube l'ADC è l'unica strada.
+- **Merchant Center**: la Content API for Shopping è **spenta dal 18 agosto 2026**, si usa la
+  Merchant API; i service account sono supportati e Google li consiglia per l'uso su dati propri.
+- Un service account va **invitato dentro il prodotto** (come utente o admin), altrimenti
+  autentica e non vede nulla.
+
+Come si isola, in pratica: `CLOUDSDK_CONFIG` verso un'altra directory (gli script la rispettano:
+backup e controlli seguono quella, non la predefinita), oppure un service account con la sua
+chiave. Nella configurazione di un MCP il percorso delle credenziali si dichiara per singolo
+server, quindi isolare un solo strumento non tocca gli altri.
+
+Il costo va detto insieme al beneficio: **un login dal browser per ogni insieme separato**, oggi
+e a ogni scadenza, più il fatto di dover ricordare quale strumento pesca da quale directory. Per
+questo la separazione totale conviene a chi ha molte integrazioni o processi non presidiati; per
+tutti gli altri la via di mezzo — separare ciò che scrive, lasciare insieme ciò che legge — è
+migliore.
 
 ## Il principio che regge tutto
 

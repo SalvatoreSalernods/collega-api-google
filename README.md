@@ -17,7 +17,7 @@ accorgi giorni dopo. Evitare questo è il cuore del lavoro.
 > insieme di credenziali condivise**, con copia di sicurezza e verifica dei permessi. Dà per
 > scontato che più strumenti sulla tua macchina usino le stesse credenziali — il caso normale se
 > hai installato gli MCP ufficiali di Google, che si autenticano così per default. Se la tua
-> situazione è diversa, guarda [più sotto](#e-se-invece-tenessi-le-credenziali-separate): a volte
+> situazione è diversa, guarda [più sotto](#cosa-tenere-insieme-e-cosa-isolare): a volte
 > la risposta giusta è non condividerle affatto.
 
 ## Due modi di usarlo, scegli in base a cosa ti serve
@@ -92,28 +92,71 @@ Quindi la protezione è precisa: le modifiche e le cancellazioni restano nell'ar
 **senza il permesso di pubblicare non arrivano al sito del cliente**. È una garanzia su ciò che
 il visitatore vede, non sull'integrità della configurazione.
 
-## E se invece tenessi le credenziali separate?
+## Cosa tenere insieme e cosa isolare
 
-Domanda giusta, e per certe situazioni è la risposta migliore. Condividere un unico insieme di
-credenziali fra tutti gli strumenti **è una scelta, non un obbligo**: è solo quella che ti
-ritrovi per default se hai installato gli MCP ufficiali di Google.
+Prima cosa da sapere: **condividere le credenziali non è una scelta che hai fatto.** Il comando
+di autorizzazione scrive un file solo, in un posto solo, e gli MCP ufficiali di Google leggono
+quel posto. La condivisione è quello che succede se non fai niente di speciale — per evitarla
+avresti dovuto conoscere in anticipo un problema che nessuno ti aveva detto che esisteva.
 
-L'alternativa è dare a ogni integrazione le sue credenziali, o tenerle in cartelle separate
-(`gcloud` lo permette con la variabile `CLOUDSDK_CONFIG`, che questi script rispettano). Costa
-un po' di configurazione all'inizio ed elimina alla radice il problema: se le credenziali non
-sono condivise, rifare un'autorizzazione non può rompere nient'altro.
+Quindi la domanda non è «ho sbagliato a condividerle», ma **che cosa conviene isolare adesso**.
 
-Come scegliere:
+### Il criterio
 
-| La tua situazione | Cosa conviene |
-|---|---|
-| Devo collegare una cosa, una volta | La [guida](guida-collega-api-google.md), e basta |
-| Ho più strumenti che già condividono le credenziali | Questo repo ti fa risparmiare tempo ed errori |
-| Devo mantenere molte integrazioni per anni | Valuta credenziali separate: meno comodo, molto più solido |
-| Uso un connettore che gestisce già l'accesso da sé | Usa il suo, e verifica quali permessi si prende |
+> **Le chiavi che aprono solo per guardare possono stare nello stesso mazzo. Quelle che aprono
+> per cambiare stanno da sole.**
 
-Non c'è una risposta unica. Ma se ti trovi a **far crescere all'infinito un unico elenco di
-permessi**, quello è il segnale che la separazione conviene.
+Il motivo è che nel mazzo condiviso **ogni strumento eredita i permessi di tutti gli altri**. Se
+lì dentro c'è un permesso di scrittura, ce l'hanno tutti: lo strumento che deve solo leggere
+Analytics potrebbe tecnicamente modificare i tuoi prodotti sul Merchant Center. Non lo farà, ma
+il potere è nel mazzo.
+
+| | Esempi | Perché |
+|---|---|---|
+| **Possono stare insieme** | Search Console, Analytics, Google Ads, YouTube — se chiedi i permessi di sola lettura | Nel peggiore dei casi qualcuno legge un dato. Non c'è niente da isolare. |
+| **Meglio isolarli** | **Merchant Center**: il suo unico permesso comprende la scrittura su prodotti e prezzi, non esiste una versione di sola lettura | Nel mazzo comune quel potere lo erediterebbero tutti gli strumenti |
+| **Da valutare** | **Tag Manager** con i permessi di modifica: consentono di cancellare tag, trigger e variabili | Niente arriva al sito senza pubblicare, quindi il rischio è contenuto — ma non è sola lettura |
+
+Un caso dove la scelta non è tua: **YouTube non funziona con credenziali «di applicazione»**
+(i service account), serve l'autorizzazione a tuo nome. Lo dice la documentazione ufficiale, e
+l'errore che restituisce non lo spiega.
+
+### Quanto costa separare
+
+Non è gratis, e vale la pena saperlo prima:
+
+- **un login dal browser per ogni insieme separato**, oggi e ogni volta che qualcosa scade;
+- devi ricordarti quale strumento pesca da quale cartella — e quando un comando dirà «nessuna
+  credenziale», la causa sarà quella;
+- più posti da rinnovare, invece di uno.
+
+Per questo la separazione totale conviene solo a chi mantiene molte integrazioni nel tempo, o
+fa girare cose senza nessuno davanti. Per tutti gli altri la via di mezzo è migliore: **separi
+ciò che può scrivere, lasci insieme ciò che legge.**
+
+### Come si fa, in pratica
+
+Due modi, entrambi supportati da questi script:
+
+1. **Cartella separata.** `gcloud` accetta la variabile `CLOUDSDK_CONFIG`: puntala a un'altra
+   cartella e quell'insieme di credenziali vive per conto suo. Gli script la rispettano — backup
+   e controlli seguono la cartella giusta invece di guardare sempre quella predefinita.
+2. **Credenziali dell'applicazione (service account),** dove il servizio le supporta: una chiave
+   dedicata, invitata dentro quel prodotto come utente. Non scade e non chiede login dal browser,
+   ma è un file da proteggere — ed è la strada che Google consiglia per Merchant Center.
+
+Nella configurazione di un MCP il percorso delle credenziali si dichiara per singolo server, così
+separare un solo strumento non tocca gli altri.
+
+### Una cosa che è cambiata
+
+Il vero pericolo del mazzo condiviso non era la condivisione: era che **nessuno si accorgeva
+della perdita**. Perdevi un accesso e lo scoprivi settimane dopo, su tutt'altro strumento.
+
+Quello adesso è coperto: la copia di sicurezza salva la fotografia dei permessi e il controllo
+confronta il prima con il dopo, quindi una perdita viene vista subito e annullata in due minuti.
+Togliendo il silenzio, la ragione principale per separare tutto viene meno — resta quella per
+isolare ciò che può scrivere, che è un'altra cosa e vale comunque.
 
 ## Cosa ti serve
 

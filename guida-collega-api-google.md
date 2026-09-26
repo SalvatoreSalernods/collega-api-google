@@ -172,6 +172,29 @@ container intero, non del suo contenuto. Quindi la garanzia è che le modifiche 
 restano nell'area di lavoro e **non arrivano al sito** finché non pubblichi — non che nulla possa
 essere cancellato.
 
+### E se il permesso che ti serve è di scrittura?
+
+Allora fermati un momento prima di aggiungerlo al mazzo comune, perché **nel mazzo condiviso ogni
+strumento eredita i permessi di tutti gli altri**: un permesso di scrittura ce l'hanno tutti, non
+solo quello che ne ha bisogno.
+
+Il criterio è semplice: **le chiavi che aprono solo per guardare possono stare insieme; quelle
+che aprono per cambiare stanno da sole.** Isolare un permesso significa tenerlo in un mazzo a
+parte — `gcloud` lo permette con la variabile `CLOUDSDK_CONFIG`, che punta a un'altra cartella —
+oppure usare le credenziali di un'applicazione (*service account*), che si invita dentro il
+prodotto come utente.
+
+Costa un login in più oggi e uno a ogni scadenza. Vale la pena quando il permesso può cambiare
+qualcosa che vedono i clienti.
+
+Due casi concreti, verificati:
+
+- **Merchant Center**: il suo unico permesso comprende la scrittura su prodotti e prezzi, non
+  esiste una versione di sola lettura. È il candidato tipico da isolare. (E attenzione: la vecchia
+  Content API for Shopping è spenta dal 18 agosto 2026, si usa la Merchant API.)
+- **YouTube**: qui la scelta non è tua, perché **non funziona con le credenziali di
+  un'applicazione** — serve l'autorizzazione a tuo nome, e quindi il mazzo normale.
+
 ## Passo 5. Porta l'app «In produzione» — prima di autorizzare
 
 `https://console.cloud.google.com/auth/audience?project=IL-TUO-PROGETTO`
