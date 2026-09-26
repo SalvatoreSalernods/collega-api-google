@@ -13,14 +13,33 @@ rompere quello che già funziona**.
 > insieme, in silenzio, e te ne accorgi giorni dopo. Il grosso di questa skill serve a
 > evitare quello.
 
+## Il perimetro: cosa fa questa skill, e cosa presuppone
+
+Fa una cosa: **aggiungere un'API a credenziali ADC condivise, con backup e verifica dei
+permessi.** Presuppone cioè che più strumenti sulla stessa macchina usino lo stesso file ADC —
+il caso normale di chi installa gli MCP ufficiali di Google (`google-ads-mcp`, `analytics-mcp`),
+che per default si autenticano così.
+
+Non è l'unica architettura possibile, e va detto all'utente quando la domanda è «come mi
+organizzo» e non «come aggiungo questa API». Un'integrazione può usare credenziali proprie
+(service account, oppure un ADC separato puntando `CLOUDSDK_CONFIG` a un'altra directory): costa
+un po' di configurazione iniziale ed elimina alla radice il rischio che un login rompa tutto il
+resto. Se l'utente ha molte integrazioni da mantenere nel tempo, proponiglielo invece di
+allargare all'infinito un unico insieme di permessi.
+
 ## Il principio che regge tutto
 
-**Gli scope OAuth non si sommano: si sostituiscono.**
+**Con questo comando gli scope non si sommano: si sostituiscono.**
 
-Un `gcloud auth application-default login` con la lista scope parziale non *aggiunge* il
+`gcloud auth application-default login --scopes=...` con una lista parziale non *aggiunge* il
 permesso nuovo — riscrive il file ADC con **solo** quello che hai elencato. Google Ads e
 Analytics smettono di funzionare all'istante, e l'errore che vedrai settimane dopo
 (`403 insufficient scopes` su tutt'altro prodotto) non punta a questa causa.
+
+Attenzione a non generalizzare: **non è una legge di OAuth.** Nei flussi web esiste
+l'autorizzazione incrementale, che somma i permessi già concessi; per le app installate Google
+la esclude, ed è il flusso che `gcloud` usa qui. Quindi la regola vale per lo strumento che
+abbiamo in mano, non per «l'autenticazione Google» in generale — e va raccontata così.
 
 Da qui discendono le due regole operative: **backup prima**, **lista completa sempre**.
 
@@ -98,7 +117,10 @@ curl -s -w "\n[HTTP:%{http_code}]\n" -H "Authorization: Bearer $TOK" "<endpoint 
 
 ### 2. Abilita l'API sul progetto
 
-Si fa da qui, senza console — lo scope `cloud-platform` lo permette:
+Si fa da qui, senza console. Servono due cose distinte, che si confondono facilmente: lo scope
+`cloud-platform` **sul token** e il permesso IAM `serviceusage.services.enable` **sul progetto**
+(se il progetto è tuo, come Owner ce l'hai; su un progetto di un cliente può mancare, e l'errore
+parla di permessi senza nominare IAM):
 
 ```bash
 TOK=$(gcloud auth application-default print-access-token)
@@ -117,6 +139,12 @@ curl -s -H "Authorization: Bearer $TOK" \
 Se all'API nuova bastava questo, fermati: **hai finito.** Non tutte le API richiedono scope
 dedicati — molte rientrano in `cloud-platform`.
 
+**Verifica però se quell'API ha requisiti propri oltre a scope e abilitazione.** Alcune non si
+sbloccano con questa procedura: Business Profile richiede una **richiesta di accesso approvata da
+Google** prima di rispondere, e altre hanno quote da chiedere. Se dopo abilitazione e scope
+corretti l'API rifiuta ancora, cerca la sua pagina «prerequisites» o «request access» invece di
+rifare il login: non è un problema di credenziali e nessun passo di questa skill lo risolve.
+
 ### 3. Backup dell'ADC
 
 Non negoziabile, ed è l'unica rete che hai:
@@ -132,9 +160,13 @@ la copia corrisponda davvero all'originale, e ruota i backup tenendo gli ultimi 
 
 | | |
 |---|---|
-| `0` | backup verificato, puoi ri-autenticarti |
+| `0` | backup verificato, puoi ri-autenticarti — **oppure** non c'era nessun ADC da salvare: è il primo collegamento, non c'è niente da perdere |
 | `1` | backup **non** riuscito — fermati, non ri-autenticarti |
 | `2` | credenziali salvate ma scope non registrati (illeggibili, o scrittura del file fallita): il rollback funziona, la ricostruzione del comando no |
+
+Al **primo collegamento** su una macchina non esiste ancora nessun ADC: lo script lo dice e ti
+manda avanti, invece di trattarlo come un guasto. Da quel momento in poi il backup serve, e
+`comando-login.sh` va eseguito con la lista completa.
 
 **Rollback:** copia il file `.json` salvato sopra `~/.config/gcloud/application_default_credentials.json`.
 Funziona perché un nuovo login non revoca il refresh token precedente — che è anche il motivo
@@ -193,18 +225,30 @@ Cosa vedrà l'utente, e va detto in anticipo perché sembra un errore:
 bash "$SCRIPTS/check-non-regressione.sh"
 ```
 
-Controlla gli scope presenti e interroga **solo le API che gli scope dicono configurate** —
-Google Ads, GA4, Tag Manager — distinguendo i guasti di credenziali (`401/403`) da ciò che
-credenziali non è (`404` da versione API dismessa, timeout). Due distinzioni che contano: un 404
-scambiato per guasto porta a un rollback inutile, e un 403 su un'API che non hai mai configurato
-non è una regressione. Se nessuna delle API note risulta configurata lo dichiara e **non** dice
-«nessuna regressione»: un controllo che non ha controllato niente non è una conferma.
+La domanda a cui risponde non è «quali API rispondono adesso» ma **«ho perso qualcosa rispetto
+a prima del login»**. La differenza decide tutto: guardando solo il presente, uno scope svanito
+sembra un servizio che non usi, e il guasto peggiore passerebbe per normalità.
+
+Il «prima» è la lista che `backup-adc.sh` ha salvato accanto alle credenziali copiate
+(`adc-*.scopes.txt`). Lo script confronta quella con gli scope di adesso:
+
+- **scope sparito** → `exit 1`, con l'istruzione di tornare indietro. È la sovrascrittura.
+- **rimozione voluta** (hai tolto `publish` per la regola del permesso minimo) → dichiarala e
+  passa: `RIMOSSI_ATTESI=tagmanager.publish bash "$SCRIPTS/check-non-regressione.sh"`. Quell'API
+  non viene più interrogata, perché il suo 403 è il risultato che volevi.
+- **nessun backup di riferimento** → `exit 2` e lo dice: senza il «prima» non può escludere una
+  perdita, e non deve far credere il contrario.
+
+Le sonde girano sulle API autorizzate **prima o adesso** (unione, non intersezione), così quella
+che funzionava e non funziona più viene interrogata proprio per mostrare il danno. Sul `403`
+distingue il guasto di credenziali da ciò che credenziali non è — API disabilitata, account non
+invitato, developer token non valido — perché in quei casi il rollback annullerebbe un ADC sano.
 
 | Uscita | Significato |
 |---|---|
-| `0` | tutte le API configurate rispondono |
-| `1` | problema di **credenziali** → rollback subito, prima di continuare |
-| `2` | anomalia che non riguarda le credenziali: nessun rollback da fare |
+| `0` | nessuno scope perso e tutte le API attese rispondono |
+| `1` | **regressione** (scope sparito) o guasto di credenziali → rollback subito |
+| `2` | non conclusivo (nessun riferimento) o anomalia che non riguarda le credenziali |
 
 Il `403` non vale da solo come prova di un guasto di credenziali: lo script legge il messaggio
 di Google e lo classifica come tale **solo** se parla di scope insufficienti. Un `403` da API
@@ -221,10 +265,20 @@ token non ha è un errore che non puoi commettere — vale più di qualsiasi cau
 perché non dipende dall'attenzione di nessuno.
 
 Caso reale: collegando Tag Manager abbiamo lasciato fuori `tagmanager.publish`. Un tentativo
-di pubblicazione ha restituito 403 e il container è rimasto offline. La stessa scelta però ha
-impedito anche di *cancellare* il container di prova via API — eliminato a mano in trenta
-secondi. Il perimetro taglia in due sensi, ed è il prezzo giusto: uno scope `delete` o
-`publish` permanente sull'ADC vale più del fastidio che evita.
+di pubblicazione ha restituito 403 e il container è rimasto offline. La stessa scelta ha impedito
+anche di *cancellare il container* di prova via API — eliminato a mano in trenta secondi. Il
+perimetro taglia in due sensi, ed è il prezzo giusto.
+
+**Non dire però che senza `delete` cancellare diventa impossibile: è falso.** Verificato alla
+fonte: `tags.delete` richiede `tagmanager.edit.containers`, quindi chi ha il permesso di
+modificare può **eliminare tag, trigger e variabili** dentro un workspace.
+`tagmanager.delete.containers` riguarda la cancellazione **del container**, non del suo
+contenuto.
+
+Quel che il perimetro garantisce davvero, e che vale comunque la pena: senza `publish`, **niente
+di tutto questo arriva al sito del cliente.** Le modifiche e le cancellazioni restano nel
+workspace, e la versione pubblicata non cambia. È una protezione sul risultato visibile, non
+sull'integrità dei dati di configurazione — dillo così, senza arrotondare.
 
 Quando l'utente chiede un'operazione che il perimetro blocca, la scelta di default è
 **farla a mano nell'interfaccia**, non allargare gli scope. Proponi l'allargamento solo se
@@ -262,8 +316,11 @@ sopra credenziali che sai funzionanti.
   e nei report va il *percorso* del file, mai il contenuto.
 - **Project ID e project number** sono lo stesso progetto: `serviceusage` accetta entrambi.
   Un errore che nomina la lunga sequenza di cifre non parla di un altro progetto.
-- **In bash `$VAR:metodo` rompe l'espansione** (`$W:create_version` → stringa vuota). Le API
-  Google con metodi custom `:` vogliono l'URL completo, non concatenato da variabili.
+- **In zsh `$VAR:metodo` rompe l'espansione**, in bash no. Verificato: con `W=abc`, `bash` dà
+  `abc:create_version`, `zsh` dà `abcreate_version`, perché `:c` è un modificatore di espansione
+  di zsh e si mangia due caratteri. Dato che la shell predefinita di Claude Code su macOS è zsh,
+  le API Google con metodi custom `:` vogliono l'URL completo o `${VAR}` con le graffe, non
+  `$VAR:metodo`.
 - **Un login fallito non sovrascrive l'ADC.** Prima di farti prendere dal panico, confronta:
   `diff ~/.config/gcloud/backups/<ultimo>.json ~/.config/gcloud/application_default_credentials.json`
 - **`CLOUDSDK_CONFIG`, se impostata, sposta l'ADC.** `gcloud` legge e riscrive le credenziali

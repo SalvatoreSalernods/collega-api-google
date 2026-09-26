@@ -13,6 +13,13 @@ nuovo ti toglie quelli che avevi già**. Se stai usando Google Ads e Analytics e
 Manager senza l'accortezza giusta, i primi due smettono di funzionare — in silenzio, e te ne
 accorgi giorni dopo. Evitare questo è il cuore del lavoro.
 
+> **Il perimetro, detto subito.** Questo repo fa una cosa: **aggiungere un servizio Google a un
+> insieme di credenziali condivise**, con copia di sicurezza e verifica dei permessi. Dà per
+> scontato che più strumenti sulla tua macchina usino le stesse credenziali — il caso normale se
+> hai installato gli MCP ufficiali di Google, che si autenticano così per default. Se la tua
+> situazione è diversa, guarda [più sotto](#e-se-invece-tenessi-le-credenziali-separate): a volte
+> la risposta giusta è non condividerle affatto.
+
 ## Due modi di usarlo, scegli in base a cosa ti serve
 
 | | |
@@ -29,9 +36,16 @@ Quando autorizzi un programma ad agire su un servizio Google, gli consegni un **
 chiavi** — nel gergo tecnico si chiamano *scope*, e sono i permessi specifici: «leggere
 Analytics», «modificare i container di Tag Manager», e così via.
 
-Il punto che frega tutti: **quel mazzo non si arricchisce, si rifà da zero.** Ogni volta che
-autorizzi qualcosa, il comando riscrive il mazzo con **solo** le chiavi che hai elencato in quel
-momento. Le altre non vengono aggiunte a quelle vecchie: cancellano le vecchie.
+Il punto che frega tutti: **con il comando che si usa qui, quel mazzo non si arricchisce — si
+rifà da zero.** Ogni volta che autorizzi qualcosa, il comando riscrive il mazzo con **solo** le
+chiavi che hai elencato in quel momento. Le altre non vengono aggiunte a quelle vecchie:
+cancellano le vecchie.
+
+Una precisazione che conta se leggi altra documentazione e ti sembra di trovare il contrario:
+**non è una regola di OAuth in generale.** Nelle applicazioni web esiste un meccanismo che somma
+i permessi già concessi; per i programmi installati sul tuo computer — la situazione di questa
+guida — Google non lo prevede. Quindi la regola vale per lo strumento che hai in mano, ed è
+quello che conta in pratica.
 
 Da qui le due regole che valgono in ogni caso, e che il resto di questo repo serve solo a far
 rispettare:
@@ -64,12 +78,42 @@ Una scelta su cui questo repo insiste. Fra i permessi che potresti chiedere ci s
 su Tag Manager significa toccare il sito vivo di un cliente.
 
 Il consiglio è di **non chiederli affatto**, e di fare quelle due cose a mano nell'interfaccia
-quando serve. Trenta secondi di lavoro manuale, in cambio del fatto che un errore di
-distrazione diventa **tecnicamente impossibile**: non è che è improbabile mandare qualcosa in
-produzione per sbaglio, è che il permesso non c'è.
-
-Verificato sul campo: senza il permesso di pubblicare, il tentativo viene rifiutato e la
+quando serve. Trenta secondi di lavoro manuale, in cambio del fatto che **mandare qualcosa in
+produzione per sbaglio diventa impossibile**, non solo improbabile: il permesso non c'è.
+Verificato sul campo — senza il permesso di pubblicare, il tentativo viene rifiutato e la
 versione attiva sul sito non cambia.
+
+**Quello che questa scelta non fa**, e va detto perché la differenza è sostanziale: non impedisce
+ogni cancellazione. In Tag Manager il permesso di *modifica* include l'eliminazione di tag,
+trigger e variabili — l'ho verificato nella documentazione del metodo, non dedotto. Il permesso
+«cancella» riguarda l'eliminazione **del container intero**, non del suo contenuto.
+
+Quindi la protezione è precisa: le modifiche e le cancellazioni restano nell'area di lavoro, e
+**senza il permesso di pubblicare non arrivano al sito del cliente**. È una garanzia su ciò che
+il visitatore vede, non sull'integrità della configurazione.
+
+## E se invece tenessi le credenziali separate?
+
+Domanda giusta, e per certe situazioni è la risposta migliore. Condividere un unico insieme di
+credenziali fra tutti gli strumenti **è una scelta, non un obbligo**: è solo quella che ti
+ritrovi per default se hai installato gli MCP ufficiali di Google.
+
+L'alternativa è dare a ogni integrazione le sue credenziali, o tenerle in cartelle separate
+(`gcloud` lo permette con la variabile `CLOUDSDK_CONFIG`, che questi script rispettano). Costa
+un po' di configurazione all'inizio ed elimina alla radice il problema: se le credenziali non
+sono condivise, rifare un'autorizzazione non può rompere nient'altro.
+
+Come scegliere:
+
+| La tua situazione | Cosa conviene |
+|---|---|
+| Devo collegare una cosa, una volta | La [guida](guida-collega-api-google.md), e basta |
+| Ho più strumenti che già condividono le credenziali | Questo repo ti fa risparmiare tempo ed errori |
+| Devo mantenere molte integrazioni per anni | Valuta credenziali separate: meno comodo, molto più solido |
+| Uso un connettore che gestisce già l'accesso da sé | Usa il suo, e verifica quali permessi si prende |
+
+Non c'è una risposta unica. Ma se ti trovi a **far crescere all'infinito un unico elenco di
+permessi**, quello è il segnale che la separazione conviene.
 
 ## Cosa ti serve
 
@@ -78,8 +122,17 @@ versione attiva sul sito non cambia.
   disponibile per Mac, Windows e Linux.
 - **Accesso ai dati su cui vuoi lavorare.** Questo non lo dà nessuna procedura tecnica: se non
   sei stato invitato al container Tag Manager di un cliente, non lo vedrai comunque.
+- **Il ruolo giusto sul progetto Cloud.** Attivare un servizio richiede un permesso
+  amministrativo sul progetto, che è cosa diversa dall'autorizzazione del programma: se il
+  progetto l'hai creato tu ce l'hai, su quello di un cliente potrebbe mancarti.
 - Per gli script: `bash`, `curl` e `jq` (su Mac e Linux ci sono già o si installano in un
   minuto).
+
+Un avvertimento sulla portata: **non tutti i servizi Google si sbloccano con questa procedura.**
+Alcuni chiedono un passaggio in più che nessuno script può fare al posto tuo — Business Profile,
+per esempio, richiede una domanda di accesso approvata da Google. Se dopo aver attivato il
+servizio e dato i permessi giusti l'API rifiuta ancora, cerca la sua pagina dei prerequisiti
+invece di rifare l'autorizzazione.
 
 ## Installare la skill in Claude Code
 
@@ -108,7 +161,7 @@ sia del tipo corretto e che appartenga davvero al progetto che hai indicato.
 | `scripts/configura.sh` | Chiede e verifica i tuoi due dati, una volta sola. |
 | `scripts/backup-adc.sh` | Copia le credenziali **e verifica che la copia sia buona** prima di lasciarti procedere. |
 | `scripts/comando-login.sh` | Genera il comando di autorizzazione leggendo i permessi che hai adesso. |
-| `scripts/check-non-regressione.sh` | Dopo l'autorizzazione controlla che i collegamenti di prima funzionino ancora. |
+| `scripts/check-non-regressione.sh` | Confronta i permessi **prima e dopo** l'autorizzazione e ti ferma se qualcosa è sparito. Se la rimozione era voluta, lo dichiari e passa. |
 
 Il criterio di scrittura di questi script è uno solo: **meglio un errore chiaro che un
 risultato a metà**. Un backup che si dichiara riuscito senza esserlo è peggio di nessun backup,

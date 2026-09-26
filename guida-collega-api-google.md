@@ -19,9 +19,13 @@ accompagnare passo per passo.
 Autorizzando un programma gli consegni un **mazzo di chiavi**: i permessi specifici su ciascun
 servizio. Nel gergo tecnico si chiamano *scope*.
 
-**Quel mazzo non si arricchisce: si rifà da zero ogni volta.** Il comando di autorizzazione
-riscrive il mazzo con **solo** le chiavi che elenchi in quel momento. Le precedenti non
-sopravvivono.
+**Con il comando di questa guida quel mazzo non si arricchisce: si rifà da zero.** Il comando di
+autorizzazione riscrive il mazzo con **solo** le chiavi che elenchi in quel momento. Le
+precedenti non sopravvivono.
+
+Se leggendo altra documentazione ti sembra di trovare il contrario: non è una regola di OAuth in
+generale. Nelle applicazioni web esiste un meccanismo che somma i permessi già concessi; per i
+programmi installati sul computer — la situazione qui — Google non lo prevede.
 
 Conseguenza pratica: se oggi usi Google Ads e Analytics e domani autorizzi Tag Manager
 elencando solo le chiavi di Tag Manager, **Ads e Analytics smettono di funzionare all'istante**,
@@ -76,7 +80,10 @@ Poi:
 
 ## Passo 2. Attiva il servizio sul tuo progetto
 
-Ogni API va attivata una volta per progetto. Dalla riga di comando:
+Ogni API va attivata una volta per progetto. Serve anche un permesso amministrativo sul progetto,
+che è cosa diversa dall'autorizzazione del programma: se il progetto l'hai creato tu ce l'hai, su
+quello di un cliente potrebbe mancarti (e l'errore parlerà di permessi senza spiegare quale).
+Dalla riga di comando:
 
 ```bash
 gcloud services enable tagmanager.googleapis.com --project=IL-TUO-PROGETTO
@@ -92,9 +99,19 @@ stesso progetto, chiamato in due modi.
 **Adesso riprova il passo 1.** Se risponde `200`, hai finito: molti servizi non richiedono
 permessi dedicati. Vai avanti solo se leggi ancora un errore sui permessi.
 
+> **Non tutti i servizi si sbloccano così.** Alcuni chiedono un passaggio in più che nessuna
+> procedura tecnica sostituisce: Business Profile, per esempio, richiede una domanda di accesso
+> approvata da Google, e altri hanno quote da richiedere. Se dopo l'attivazione e i permessi
+> corretti l'API rifiuta ancora, cerca la sua pagina dei prerequisiti: non è un problema di
+> autorizzazione.
+
 ## Passo 3. Copia le credenziali (la tua rete di sicurezza)
 
 Questo passaggio non si salta. È l'unico modo di tornare indietro.
+
+Se è la **prima volta** che autorizzi qualcosa su questo computer, il file delle credenziali non
+esiste ancora: non c'è niente da copiare e niente da perdere. Salta al passo 4 e, al passo 6,
+elenca solo i permessi che ti servono.
 
 ```bash
 # il file delle credenziali (su Windows: %APPDATA%\gcloud\)
@@ -145,9 +162,15 @@ Fra i permessi disponibili ci sono **«pubblica»** e **«cancella»**: le due s
 davvero irreversibili. Su Tag Manager pubblicare significa toccare il sito vivo di un cliente.
 
 Il consiglio è di **non chiederli affatto** e di fare quelle due cose a mano nell'interfaccia
-quando capita. Costa trenta secondi e in cambio un errore di distrazione diventa *impossibile*,
-non solo improbabile: il permesso non c'è. Verificato sul campo — senza il permesso di
-pubblicare, il tentativo viene rifiutato e la versione attiva sul sito non cambia.
+quando capita. Costa trenta secondi e in cambio **mandare qualcosa in produzione per sbaglio
+diventa impossibile**, non solo improbabile: il permesso non c'è. Verificato sul campo — senza il
+permesso di pubblicare, il tentativo viene rifiutato e la versione attiva sul sito non cambia.
+
+Attenzione a cosa questo **non** garantisce. In Tag Manager il permesso di *modifica* comprende
+l'eliminazione di tag, trigger e variabili: il permesso «cancella» riguarda l'eliminazione del
+container intero, non del suo contenuto. Quindi la garanzia è che le modifiche e le cancellazioni
+restano nell'area di lavoro e **non arrivano al sito** finché non pubblichi — non che nulla possa
+essere cancellato.
 
 ## Passo 5. Porta l'app «In produzione» — prima di autorizzare
 
@@ -187,7 +210,9 @@ Nel browser vedrai «Google non ha verificato questa app»: è atteso, si proced
 
 ## Passo 7. Controlla di non aver rotto niente
 
-Il controllo che conta non è sul servizio nuovo — è su quelli di prima.
+Il controllo che conta non è sul servizio nuovo — è su quelli di prima. E non è «i servizi
+rispondono?», ma **«l'elenco delle chiavi è ancora completo?»**: un permesso scomparso, guardando
+solo il presente, sembra un servizio che non usavi.
 
 ```bash
 TOKEN=$(gcloud auth application-default print-access-token)
