@@ -10,7 +10,19 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 TIENI="${TIENI:-10}"   # quanti backup conservare
 
 richiede gcloud curl jq || exit 1
-[ -f "$ADC_FILE" ] || { err "ERRORE: ADC non trovato in $ADC_FILE"; exit 1; }
+# Nessun ADC non e' un guasto: e' il primo collegamento. Distinguere i due casi
+# conta, perche' uscire in errore qui lascia chi parte da zero senza una strada.
+if [ ! -f "$ADC_FILE" ]; then
+  echo "Nessuna credenziale da salvare: $ADC_FILE non esiste."
+  echo
+  echo "E' il primo collegamento su questa macchina, quindi non c'e' niente da"
+  echo "perdere e niente da copiare. Puoi autenticarti direttamente:"
+  echo "  bash \"$(dirname "$0")/comando-login.sh\" <scope-che-ti-serve>"
+  echo
+  echo "Dalla prossima volta questo backup servira': rilancialo prima di ogni"
+  echo "nuova autorizzazione."
+  exit 0
+fi
 
 mkdir -p "$BACKUP_DIR" || { err "ERRORE: impossibile creare $BACKUP_DIR"; exit 1; }
 chmod 700 "$BACKUP_DIR"

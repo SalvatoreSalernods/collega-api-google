@@ -19,16 +19,40 @@ richiede gcloud curl jq || exit 1
 
 PREFIX="https://www.googleapis.com/auth/"
 
-ATTUALI=$(adc_scopes) || {
-  err ""
-  err "Non posso costruire il comando senza sapere quali scope sono attivi ora."
-  err "Costruirlo a memoria e' esattamente l'errore che questo script previene:"
-  err "uno scope dimenticato cancella l'accesso agli altri MCP."
-  err ""
-  err "Se l'ADC e' irrecuperabile, recupera la lista dall'ultimo backup:"
-  err "  cat \$(ls -1t $BACKUP_DIR/adc-*.scopes.txt 2>/dev/null | head -1)"
-  exit 1
-}
+# Due casi da non confondere.
+#
+# 1. ADC ASSENTE: e' il primo collegamento. Non c'e' nessuna lista da preservare,
+#    quindi costruire il comando con i soli scope richiesti e' corretto e sicuro.
+# 2. ADC PRESENTE ma illeggibile: qui ci si ferma. Una lista parziale
+#    cancellerebbe accessi che esistono, ed e' il danno che questo script esiste
+#    per prevenire.
+if [ ! -f "$ADC_FILE" ]; then
+  if [ $# -eq 0 ]; then
+    err "Primo collegamento: non ci sono credenziali da estendere ($ADC_FILE assente)."
+    err "Dimmi quali permessi ti servono, altrimenti non c'e' niente da chiedere:"
+    err "  bash \"$0\" webmasters.readonly"
+    err ""
+    err "Al primo collegamento conviene includere anche cloud-platform, che serve"
+    err "per attivare le API dalla riga di comando (insieme al ruolo IAM adeguato"
+    err "sul progetto: se il progetto e' tuo, ce l'hai)."
+    exit 1
+  fi
+  echo "Primo collegamento: nessuna credenziale preesistente da preservare."
+  echo "Il comando conterra' i soli permessi che hai chiesto."
+  echo
+  ATTUALI=""
+else
+  ATTUALI=$(adc_scopes) || {
+    err ""
+    err "Le credenziali esistono ma non riesco a leggere quali permessi hanno."
+    err "Qui mi fermo: costruire la lista a memoria e' esattamente l'errore che"
+    err "questo script previene — uno scope dimenticato cancella accessi vivi."
+    err ""
+    err "Recupera la lista dall'ultimo backup e passala a mano:"
+    err "  cat \$(ls -1 $BACKUP_DIR/adc-*.scopes.txt 2>/dev/null | sort -r | head -1)"
+    exit 1
+  }
+fi
 
 CLIENT=$(client_file) || exit 1
 
@@ -49,8 +73,12 @@ done
 # Unione senza duplicati, ordinata.
 TUTTI=$(printf '%s\n' $ATTUALI $NUOVI | sed '/^$/d' | sort -u)
 
-echo "Scope attivi ora ($(printf '%s\n' $ATTUALI | wc -l | tr -d ' ')):"
-printf '  - %s\n' $ATTUALI
+if [ -n "$ATTUALI" ]; then
+  echo "Scope attivi ora ($(printf '%s\n' $ATTUALI | grep -c .)):"
+  printf '  - %s\n' $ATTUALI
+else
+  echo "Nessuno scope attivo: si parte da zero."
+fi
 if [ -n "$NUOVI" ]; then
   echo
   echo "In aggiunta:"
