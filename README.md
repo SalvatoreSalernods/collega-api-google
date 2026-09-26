@@ -1,136 +1,161 @@
 # collega-api-google
 
-Skill per [Claude Code](https://code.claude.com/docs/en/overview) che collega una **nuova API
-Google** alle credenziali Application Default (ADC) della macchina — Search Console, Tag
-Manager, Business Profile, YouTube Data, Merchant Center, Drive, Calendar — **senza rompere
-gli MCP Google che già funzionano**.
+Collegare **Search Console, Tag Manager, Business Profile, YouTube, Merchant Center** — e in
+generale qualunque servizio Google — a un assistente AI o alla riga di comando, per leggere e
+scrivere dati senza aprire l'interfaccia.
 
-## Il problema che risolve
+Non è difficile chiamare queste API. È difficile **ottenere il permesso** di chiamarle: è lì che
+si perde un pomeriggio, e i messaggi d'errore che incontri indicano quasi sempre una causa
+sbagliata. Questo repo raccoglie la procedura che funziona, verificata sul campo.
 
-L'API Google, in sé, è documentata e lineare. Quello che ferma tutti è ottenere il permesso di
-chiamarla, e ogni ostacolo di quella catena restituisce un errore che indica la causa sbagliata:
+C'è un secondo motivo, meno ovvio e più importante: **il modo sbagliato di chiedere un permesso
+nuovo ti toglie quelli che avevi già**. Se stai usando Google Ads e Analytics e colleghi Tag
+Manager senza l'accortezza giusta, i primi due smettono di funzionare — in silenzio, e te ne
+accorgi giorni dopo. Evitare questo è il cuore del lavoro.
 
-| Quello che vedi | Quello che è davvero |
+## Due modi di usarlo, scegli in base a cosa ti serve
+
+| | |
 |---|---|
-| `403 SERVICE_DISABLED` | l'API non è abilitata sul progetto |
-| `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT` | credenziali valide, scope mancante |
-| «Questa app è bloccata» | manca `--client-id-file`: gcloud sta usando il proprio client generico |
-| le credenziali scadono ogni ~7 giorni | l'app OAuth è in stato "Testing", non "In produzione" |
-| un MCP che funzionava smette di funzionare | un login precedente ha **sovrascritto** gli scope |
+| **Lo faccio una volta e basta** | Apri la **[guida passo a passo](GUIDA-PASSO-A-PASSO.md)**: la procedura completa in un unico file, comandi compresi. Niente da installare. Va bene anche da incollare a ChatGPT o Claude perché ti accompagni. |
+| **Lavoro in Claude Code e lo rifarò** | Installa la skill (istruzioni sotto). Automatizza i passaggi delicati e ti riconosce gli errori mesi dopo, quando non ricorderai più niente. |
 
-L'ultima riga è la ragione vera di questa skill.
+La seconda non è un vezzo: appena aggiungi un secondo servizio Google, la procedura si rifà da
+capo. E la parte che si ripete è proprio quella dove un passo saltato fa danni.
 
-## Il principio
+## Il meccanismo da capire, prima dei comandi
 
-**Gli scope OAuth non si sommano: si sostituiscono.**
+Quando autorizzi un programma ad agire su un servizio Google, gli consegni un **mazzo di
+chiavi** — nel gergo tecnico si chiamano *scope*, e sono i permessi specifici: «leggere
+Analytics», «modificare i container di Tag Manager», e così via.
 
-`gcloud auth application-default login --scopes=...` non aggiunge il permesso nuovo: riscrive
-il file ADC con **solo** ciò che hai elencato. Se stai già usando Google Ads e Analytics e
-autorizzi Tag Manager elencando i soli scope di Tag Manager, gli altri due smettono di
-funzionare all'istante — senza alcun avviso. L'errore che vedrai settimane dopo, su tutt'altro
-prodotto, non punta a questa causa.
+Il punto che frega tutti: **quel mazzo non si arricchisce, si rifà da zero.** Ogni volta che
+autorizzi qualcosa, il comando riscrive il mazzo con **solo** le chiavi che hai elencato in quel
+momento. Le altre non vengono aggiunte a quelle vecchie: cancellano le vecchie.
 
-Da qui le due regole che la skill impone: **backup prima**, **lista completa sempre**. E il
-comando di login non si scrive a mano: lo genera uno script leggendo gli scope realmente
-attivi sul token.
+Da qui le due regole che valgono in ogni caso, e che il resto di questo repo serve solo a far
+rispettare:
 
-## Cosa contiene
+1. **Copia il mazzo prima di rifarlo.** Serve a tornare indietro se qualcosa va storto.
+2. **Elenca sempre tutte le chiavi**, non solo quella nuova. Comprese quelle che usi per altri
+   servizi e di cui forse ti sei dimenticato.
 
-```
-skills/collega-api-google/
-├── SKILL.md                        la procedura in 7 passi + diagnostica
-└── scripts/
-    ├── configura.sh                chiede e verifica i tuoi dati, una volta sola
-    ├── backup-adc.sh               backup verificato + rotazione (exit code parlante)
-    ├── comando-login.sh            costruisce il comando di login dagli scope ATTIVI
-    ├── check-non-regressione.sh    interroga gli MCP esistenti: hai rotto qualcosa?
-    └── lib.sh                      funzioni condivise
-```
+Per la seconda regola la memoria non basta, ed è il motivo per cui qui c'è uno script invece di
+un promemoria: il comando di autorizzazione viene **generato leggendo le chiavi che hai in questo
+momento**, così non dipende da cosa ti ricordi.
 
-Ogni script **fallisce rumorosamente** invece di produrre un risultato parziale: una lista di
-scope incompleta o un backup che si dichiara riuscito senza esserlo sono più pericolosi di un
-errore, perché ti fanno procedere convinto di avere una rete che non c'è.
+## Gli errori che incontrerai, e cosa vogliono dire davvero
 
-## Requisiti
+Questa tabella è metà del valore del repo. Nessuno di questi messaggi nomina la causa vera.
 
-- [gcloud CLI](https://docs.cloud.google.com/sdk/docs/install) — macOS, Windows o Linux
-- `jq`, `curl`, `bash` (compatibile con la 3.2 di macOS: niente `mapfile` né array associativi)
-- un progetto Google Cloud (gratuito) con un **OAuth Client ID di tipo App desktop**
-- accesso, dentro il prodotto Google, alle risorse su cui vuoi lavorare: l'autorizzazione
-  tecnica non sostituisce l'invito a un account
+| Quello che leggi | Quello che è davvero | Dove si risolve |
+|---|---|---|
+| `SERVICE_DISABLED` | il servizio non è ancora attivato sul tuo progetto Google | passo 2 della guida |
+| `ACCESS_TOKEN_SCOPE_INSUFFICIENT` | le credenziali sono buone, manca il permesso specifico | passi 4-6 |
+| «Questa app è bloccata» | stai usando un'identità generica che Google non autorizza per questi servizi | passo 6 |
+| Le credenziali scadono ogni settimana | la tua app è rimasta in stato «Test» | passo 5 |
+| `PERMISSION_DENIED`, senza parlare di permessi tecnici | il tuo account non è stato invitato a quella risorsa: è un invito da chiedere, non un problema tecnico | — |
+| Un collegamento che funzionava smette di funzionare | un'autorizzazione successiva ha sovrascritto il mazzo di chiavi | si torna indietro dalla copia |
 
-## Installazione
+## Il permesso minimo: la parte che protegge i tuoi clienti
 
-Come plugin, dal marketplace del repo:
+Una scelta su cui questo repo insiste. Fra i permessi che potresti chiedere ci sono
+**«pubblica»** e **«cancella»**. Sono le due sole operazioni davvero irreversibili — pubblicare
+su Tag Manager significa toccare il sito vivo di un cliente.
+
+Il consiglio è di **non chiederli affatto**, e di fare quelle due cose a mano nell'interfaccia
+quando serve. Trenta secondi di lavoro manuale, in cambio del fatto che un errore di
+distrazione diventa **tecnicamente impossibile**: non è che è improbabile mandare qualcosa in
+produzione per sbaglio, è che il permesso non c'è.
+
+Verificato sul campo: senza il permesso di pubblicare, il tentativo viene rifiutato e la
+versione attiva sul sito non cambia.
+
+## Cosa ti serve
+
+- Un **progetto Google Cloud**, che è gratuito e serve solo da contenitore amministrativo.
+- Lo **strumento a riga di comando di Google** ([gcloud](https://docs.cloud.google.com/sdk/docs/install)),
+  disponibile per Mac, Windows e Linux.
+- **Accesso ai dati su cui vuoi lavorare.** Questo non lo dà nessuna procedura tecnica: se non
+  sei stato invitato al container Tag Manager di un cliente, non lo vedrai comunque.
+- Per gli script: `bash`, `curl` e `jq` (su Mac e Linux ci sono già o si installano in un
+  minuto).
+
+## Installare la skill in Claude Code
 
 ```bash
 claude plugin marketplace add SalvatoreSalernods/collega-api-google
 claude plugin install collega-api-google
 ```
 
-Oppure a mano, con un symlink nella cartella delle skill:
+Poi, una volta sola, la configurazione:
 
 ```bash
-git clone https://github.com/SalvatoreSalernods/collega-api-google.git
-ln -s "$PWD/collega-api-google/skills/collega-api-google" ~/.claude/skills/collega-api-google
+bash ~/.claude/plugins/cache/collega-api-google/collega-api-google/*/skills/collega-api-google/scripts/configura.sh
 ```
 
-Poi, una volta sola:
+Ti chiede due dati — quale progetto Google Cloud usi e dove hai salvato il file dell'identità
+OAuth — e li controlla invece di fidarsi: che il progetto sia scritto nel formato giusto (i due
+errori classici sono usare il *numero* del progetto o il suo *nome visualizzato*), che il file
+sia del tipo corretto e che appartenga davvero al progetto che hai indicato.
 
-```bash
-bash ~/.claude/skills/collega-api-google/scripts/configura.sh
+## Cosa c'è dentro
+
+| File | A cosa serve |
+|---|---|
+| [`GUIDA-PASSO-A-PASSO.md`](GUIDA-PASSO-A-PASSO.md) | La procedura completa da leggere o da incollare a un assistente AI. Nessuna installazione. |
+| `skills/collega-api-google/SKILL.md` | Le istruzioni che segue Claude Code: gli stessi passi, più la diagnostica degli errori. |
+| `scripts/configura.sh` | Chiede e verifica i tuoi due dati, una volta sola. |
+| `scripts/backup-adc.sh` | Copia le credenziali **e verifica che la copia sia buona** prima di lasciarti procedere. |
+| `scripts/comando-login.sh` | Genera il comando di autorizzazione leggendo i permessi che hai adesso. |
+| `scripts/check-non-regressione.sh` | Dopo l'autorizzazione controlla che i collegamenti di prima funzionino ancora. |
+
+Il criterio di scrittura di questi script è uno solo: **meglio un errore chiaro che un
+risultato a metà**. Un backup che si dichiara riuscito senza esserlo è peggio di nessun backup,
+perché ti fa procedere convinto di avere una rete che non c'è.
+
+## Dove finiscono i tuoi dati
+
+I due dati della configurazione stanno in un file di testo sul tuo computer:
+
+```
+~/.config/collega-api-google/config.env
 ```
 
-## Dove finisce la tua configurazione
+È l'unico file che la skill crea. Per cambiare progetto rilanci `configura.sh`; per rimuovere
+tutto, cancelli quel file. Con `configura.sh --mostra` vedi cosa contiene e ottieni i due
+indirizzi della console Google già puntati al tuo progetto.
 
-`configura.sh` chiede il project ID e il percorso del file client OAuth, li **verifica** (che
-l'ID abbia la forma giusta, che il client sia di tipo Desktop e non Web, che appartenga al
-progetto che hai scelto) e li scrive qui:
+## Cosa fa questo codice delle tue credenziali
 
-```
-~/.config/collega-api-google/config.env      # dir 700, file 600
-```
+Domanda legittima prima di eseguire script di uno sconosciuto che toccano l'accesso ai tuoi
+account Google.
 
-È l'unico file che la skill crea fuori da `~/.config/gcloud`. Per cambiare progetto rilanci
-`configura.sh`; per disinstallare tutto, cancelli quel file. `configura.sh --mostra` ti dice
-cosa c'è dentro e ti stampa le due URL di console già puntate al tuo progetto.
-
-## Cosa fa questa skill delle tue credenziali
-
-Legittimo chiederselo prima di eseguire script altrui che toccano l'OAuth di tutti i tuoi
-progetti Google. In breve:
-
-- **Il contenuto del file client non viene mai letto, stampato o copiato.** Circola solo il
-  percorso. L'unica cosa che viene letta dentro quel file è il tipo di client e il `project_id`,
-  per i due controlli di `configura.sh`.
-- **I backup dell'ADC restano sulla tua macchina**, in `~/.config/gcloud/backups/`, a permessi
-  600 in una directory 700. Ogni backup contiene un refresh token valido: cancellare il file
-  non lo revoca, per farlo davvero serve
+- **La password dell'identità OAuth non viene mai letta né mostrata.** Del file salvato sul tuo
+  computer circola solo il percorso. Le uniche due informazioni lette al suo interno sono il
+  tipo di identità e il progetto a cui appartiene, per i controlli della configurazione.
+- **Le copie delle credenziali restano sul tuo computer**, in una cartella accessibile solo a
+  te. Attenzione a un punto: ogni copia contiene un accesso ancora valido, e cancellare il file
+  non lo revoca. Per revocarlo davvero si passa da
   [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
-- **Gli output non stampano risposte grezze delle API.** Quando una chiamata va storta viene
-  mostrato il motivo riferito da Google, non il corpo della risposta, che conterrebbe la tua
-  email e il tuo client ID — e che finirebbe in chiaro il giorno che incolli un errore in una
-  issue.
-- **Nessuna chiamata va altrove che a Google.** Nessuna telemetria, nessun endpoint di terzi.
+- **Gli errori mostrano il motivo riferito da Google, non la risposta completa** — che
+  conterrebbe il tuo indirizzo email e l'identificativo della tua app, e che finirebbe in chiaro
+  il giorno che incolli un errore in un forum.
+- **Nessuna chiamata va altrove che a Google.** Nessuna raccolta di dati d'uso, nessun servizio
+  di terzi.
 
-## Il perimetro minimo
+## Serve un MCP per collegare un'API Google?
 
-La skill sostiene una scelta esplicita: **omettere gli scope di scrittura pericolosi finché non
-servono davvero**. Senza `tagmanager.publish`, mandare per errore qualcosa in produzione sul
-sito di un cliente non è improbabile — è tecnicamente impossibile. Verificato sul campo: il
-tentativo di pubblicazione riceve un `403` e la versione live non cambia.
+Domanda ricorrente per chi lavora con assistenti AI. Nella maggior parte dei casi **no**: se la
+sequenza di operazioni la conosci già, delle normali chiamate dirette sono più semplici da
+scrivere, più facili da controllare e non richiedono manutenzione. Un MCP si giustifica quando
+vuoi che il modello **scelga da solo** fra molte operazioni possibili, in sessioni diverse,
+senza rispiegargli ogni volta il contesto.
 
-Il taglio vale in due sensi — senza `delete.containers` non puoi nemmeno cancellare un
-container di prova via API, e lo fai a mano in trenta secondi. È il prezzo giusto: un permesso
-permanente sull'ADC costa più del fastidio che evita.
-
-## Serve un MCP per questa API?
-
-Spesso no, e la skill lo dice invece di venderti un'integrazione. Le chiamate REST dirette
-bastano quando l'uso è occasionale o quando la sequenza la conosci già. Un server MCP si
-giustifica quando il modello deve **scegliere da solo** fra molte operazioni, in sessioni
-diverse. In quel caso l'accesso è già risolto: ci costruisci sopra.
+La parte che vale la pena risolvere bene è l'accesso, non l'integrazione. Una volta autorizzato,
+ci costruisci sopra quello che ti serve.
 
 ## Licenza
 
-MIT — vedi [LICENSE](LICENSE).
+MIT — vedi [LICENSE](LICENSE). Di Salvatore Salerno,
+[digital strategist](https://github.com/SalvatoreSalernods).
