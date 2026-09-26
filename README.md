@@ -17,7 +17,7 @@ accorgi giorni dopo. Evitare questo è il cuore del lavoro.
 
 | | |
 |---|---|
-| **Lo faccio una volta e basta** | Apri la **[guida passo a passo](GUIDA-PASSO-A-PASSO.md)**: la procedura completa in un unico file, comandi compresi. Niente da installare. Va bene anche da incollare a ChatGPT o Claude perché ti accompagni. |
+| **Lo faccio una volta e basta** | Apri la **[guida passo a passo](guida-collega-api-google.md)**: la procedura completa in un unico file, comandi compresi. Niente da installare. Va bene anche da incollare a ChatGPT o Claude perché ti accompagni. |
 | **Lavoro in Claude Code e lo rifarò** | Installa la skill (istruzioni sotto). Automatizza i passaggi delicati e ti riconosce gli errori mesi dopo, quando non ricorderai più niente. |
 
 La seconda non è un vezzo: appena aggiungi un secondo servizio Google, la procedura si rifà da
@@ -103,7 +103,7 @@ sia del tipo corretto e che appartenga davvero al progetto che hai indicato.
 
 | File | A cosa serve |
 |---|---|
-| [`GUIDA-PASSO-A-PASSO.md`](GUIDA-PASSO-A-PASSO.md) | La procedura completa da leggere o da incollare a un assistente AI. Nessuna installazione. |
+| [`guida-collega-api-google.md`](guida-collega-api-google.md) | La procedura completa da leggere o da incollare a un assistente AI. Nessuna installazione. |
 | `skills/collega-api-google/SKILL.md` | Le istruzioni che segue Claude Code: gli stessi passi, più la diagnostica degli errori. |
 | `scripts/configura.sh` | Chiede e verifica i tuoi due dati, una volta sola. |
 | `scripts/backup-adc.sh` | Copia le credenziali **e verifica che la copia sia buona** prima di lasciarti procedere. |
